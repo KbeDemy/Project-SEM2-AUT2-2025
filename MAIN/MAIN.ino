@@ -1,10 +1,7 @@
 /*
   extra elementen die nodig zijn 
      - een TARE knop 
-     - alle communicatie die nu serieel gebeurt zal moeten gebeuren via een lcd scherm ****GEDAAN****
-     - de wanted value moet kunnen worden ingesteld ****GEDAAN****
      - de klep moet nog kunnen werken 
-     - de tijd dat de pomp aanligt moet nog instelbaar zijn  ****GEDAAN****
      - ERROR handeling van bepaalde noodsituaties (bv.) 
         - als het gewicht wegvalt dan zou er een error moeten zijn 
         - ...
@@ -18,6 +15,15 @@
 #include <HX711_ADC.h> // library voor ADC converter LOADCELL
 #include <EEPROM.h> // opslaan van cali val voor LOADCELL
 #include <Stepper.h> // 
+
+// DEBUG Toggle
+#define DEBUG 1  // 0 = alleen loadcell waarden, 1 = on full debugmode
+#if DEBUG 
+  #define Debug_println(x) Serial.println(x)
+  #define Debug_print(x) Serial.print(x)
+#else 
+  #define Debug_print(x)
+#endif
 
 // pin def
 const uint8_t stopPin = 2; 
@@ -100,11 +106,11 @@ void setupLoadCell(){
   float calibrationValue = 231.72; 
   LoadCell.start(2000, true);
   if (LoadCell.getTareTimeoutFlag()) {
-    Serial.println("Timeout, check MCU>HX711 wiring and pin designations");
+    Debug_println("Timeout, check MCU>HX711 wiring and pin designations");
     while (1);
   } else {
     LoadCell.setCalFactor(calibrationValue);
-    Serial.println("Startup is complete");
+    Debug_println("Startup is complete");
   }
 }
 
@@ -123,10 +129,11 @@ void init_LCD(){
 void loop() {
   if (digitalRead(startPin) == LOW && !automaticMode){
     automaticMode = true;
-    Serial.println("automatic mode has started");
+    Debug_println("automatic mode");
     automatic();
   }
   if(!automaticMode){
+    Debug_println("manual mode")
     manual();
     digitalWrite(pumpPin, LOW); 
     digitalWrite(valvePin, LOW);
@@ -144,38 +151,37 @@ void manual(){
   int speed = map(abs(joystickValue - 512), 0, 512, 50, 200); 
 
   readLoadCell();
-
   Serial.println(newtonValue);
   printValue(newtonValue);
+
   if (newtonValue < newtonMax){
     if (joystickValue < 512 - deadZone) {
-      Serial.println("Motor gaat omlaag");
+      Debug_println("Motor gaat omlaag");
       stepper.setSpeed(speed);
       stepper.step(50); // Beweeg de motor omhoog
     }
     else if (joystickValue > 512 + deadZone) {
-      Serial.println("Motor omhoog");
+      Debug_println("Motor omhoog");
       stepper.setSpeed(speed);
       stepper.step(-50); 
     }
 
     else {
-        Serial.println("move joystick");
+      Debug_println("move joystick");
     }
   }
   else {
-    Serial.print("Maximum value reached : ");
-    Serial.println(newtonMax); 
-    // als max dan mag je hem omhoog laten gaan
+    Debug_print("Maximum value reached : ");
+    Debug_println(newtonMax); 
+    // als max dan gaat hij omhoog gaan
     if (joystickValue > 512 + deadZone) {
-      Serial.println("Motor omhoog");
+      Debug_println("Motor omhoog");
       stepper.setSpeed(speed);
       stepper.step(-50); // Beweeg de motor omhoog
     }
   }
 }
 void automatic(){
-
   askNewtonValue();
   askPumpTime();
 
@@ -200,32 +206,32 @@ void automatic(){
       isPumpRunning = true;
       pumpStartTime = millis();
       digitalWrite(pumpPin, HIGH); 
-      Serial.println("pomp aan");
+      Debug_println("pomp aan");
     }
   }
  while (isPumpRunning && !isValveOpen) {
 
-    Serial.print("Verstreken tijd: ");
-    Serial.println(millis() - pumpStartTime);
-    Serial.print("Ingestelde tijd: ");
-    Serial.println(pumpTime);
+    Debug_print("Verstreken tijd: ");
+    Debug_println(millis() - pumpStartTime);
+    Debug_print("Ingestelde tijd: ");
+    Debug_println(pumpTime);
 
 /*  dit werkt niet ik weet niet welke pin we hier voor moeten gaan gebruiken ?  */
 
     if (millis() - pumpStartTime >= pumpTime) {
      
-      Serial.println("Timer verlopen! POMP UIT!");
+      Debug_println("Timer verlopen! POMP UIT!");
       digitalWrite(pumpPin, LOW);
       isPumpRunning = false;
       digitalWrite(valvePin, HIGH);
       isValveOpen = true;
-      Serial.println("Klep geopend");
+      Debug_println("Klep geopend");
 
-      Serial.println("motor omhoog");
+      Debug_println("motor omhoog");
       stepper.setSpeed(100);
       stepper.step(-1000);
       
-      Serial.println("automatishe mode gestopt");
+      Debug_println("automatishe mode gestopt");
       automaticMode = false;
       digitalWrite(valvePin,LOW);
       isValveOpen = false;
@@ -262,7 +268,7 @@ void askNewtonValue() {
   float stapgrootte = 0.1;
 
   unsigned long lastUpdateTime = 0;
-  unsigned long updateInterval = 200; // joystick aanpassingstijd
+  unsigned long updateInterval = 100; // joystick aanpassingstijd
 
   while (true) {
     int joyValue = analogRead(joystickPin);
@@ -319,7 +325,7 @@ void askPumpTime() {
   float stapgrootte = 1.0; // 1 seconde per stap
 
   unsigned long lastUpdateTime = 0;
-  unsigned long updateInterval = 200; // joystick aanpassingstijd
+  unsigned long updateInterval = 100; // joystick aanpassingstijd
 
   while (true) {
     int joyValue = analogRead(joystickPin);
@@ -337,7 +343,7 @@ void askPumpTime() {
 
       pumpTime += (long)delta;
 
-      // beperken tussen 0 en 2 minuten
+      // beperken tussen 0 en PumpTimeMAx minuten
       if (pumpTime < 0) pumpTime = 0;
       if (pumpTime > pumpTimeMax) pumpTime = pumpTimeMax;
 
@@ -358,7 +364,7 @@ void askPumpTime() {
       lcd.print("s");
 
       lcd.setCursor(0, 1);
-      lcd.print("Confirm ->");
+      lcd.print("Start ->");
 
       printTimeLCD = millis();
     }
