@@ -1,4 +1,4 @@
-Deze map bevat alle documentatie en kennis die tijdens het project is verzameld.
+ouDeze map bevat alle documentatie en kennis die tijdens het project is verzameld.
 Het doel is om toekomstige ontwikkelaars een duidelijk en compleet overzicht te bieden, zodat zij het project efficiënt kunnen voortzetten en verbeteren!
 
 
@@ -9,4 +9,11 @@ Het doel is om toekomstige ontwikkelaars een duidelijk en compleet overzicht te 
     
 #3 bepaalde keuzes die we hebben gemaakt uitleggen 
 
-#4 
+#4 hoe zou je datalogging van de device kunnen doen 
+        - verbind de computer met de arduino via USB kabel
+        - open/instaleer PUTTY 
+        - selecteer serial-communicatie via de juiste COM poort 
+        - enable logging naar een putty.log file
+        - in de MAIN programma zou er moeten staan " #Define DEBUG 0 " dit zorgt ervoor dat alleen de loadcell waardes op de seriele bus komen
+        - als alles correct is zou het mogelijk moeten zijn om de data op te slaan in .log file
+        - deze kun je dan verwerken in exel of python 
