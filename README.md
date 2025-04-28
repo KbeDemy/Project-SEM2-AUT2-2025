@@ -1,4 +1,11 @@
 # PMD4U
-Dit is voor ons project PMD4U 
+Dit is ons project PMD4U: CHIP ENCLOSURE
+
+deze opstelling kan verschillende soorten microfluida chips.
+
+Gemaakt Door: Kobe Demey, Niels Haverbeke, Pieter-Jan Hofman
+
+Begeleiders: Stefaan Vermeulen, Lieve Vermeulen
+ 
 
 
