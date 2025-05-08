@@ -8,7 +8,6 @@ Het doel is om toekomstige ontwikkelaars een duidelijk en compleet overzicht te 
 ## 1. Schema
 
 Het bijgevoegde schema toont de eerste werkende opstelling.  
-Deze bestaat uit:
 - 1 Arduino (met het programma geüpload vanuit `MAIN`)
 - Een joystick-shield dat rechtstreeks op de Arduino geplaatst is
 
