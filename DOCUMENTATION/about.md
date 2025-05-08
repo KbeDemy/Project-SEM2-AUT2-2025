@@ -38,7 +38,7 @@ Zie de bijgevoegde schermafbeeldingen voor het overzicht van de pinout van de ge
 
 ---
 
-##4 . Problemen met de motor en oplossing
+## 4. Problemen met de motor en oplossing en nog meer problemen
 We ondervonden problemen om de juiste kracht over te brengen op de motor.
 Na uitgebreid onderzoek tijdens de ACCURACY-test en analyse, hebben we de volgende stappen ondernomen:
 
