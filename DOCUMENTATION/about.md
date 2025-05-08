@@ -57,3 +57,9 @@ Een proportionele regelaar werd toegevoegd voor extra nauwkeurigheid.
 Huidig probleem:
 Na de controle blijft de motor soms verder draaien of stopt hij niet onmiddellijk.
 Bovendien geeft het systeem extreem hoge gramwaardes na het stoppen, waardoor we niet weten wat de echte waarde is.
+
+---
+
+## 5. Probleem met HX711 converter 
+waneer je de steppermotor beweegt manueel en automatish dan is er ruis op het signaal
+en gaat hij naar 10 gram wat niet veel is maar het is er wel 
