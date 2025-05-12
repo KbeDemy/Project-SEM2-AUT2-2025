@@ -15,7 +15,7 @@
 #include <AccelStepper.h>      // library voor stepper-motor (TMC2209)
 
 // DEBUG Toggle
-#define DEBUG 1  // 0 = off (alleen loadcell waarden), 1 = on (full debugmode)
+#define DEBUG 0 // 0 = off (alleen loadcell waarden), 1 = on (full debugmode)
 #if DEBUG 
   #define Debug_println(x) Serial.println(x)
   #define Debug_print(x) Serial.print(x)
@@ -129,8 +129,9 @@ void loop() {
   if(!automaticMode && !tareRequested){
     Debug_println("manual mode");
     moveManual();
+    digitalWrite(pumpPin, LOW);
+    digitalWrite(valvePin , LOW);
   }
-
   doTareRequest();
 }
 
@@ -176,45 +177,69 @@ void moveManual(){
 
 void automatic(){
   bool isPumpRunning = false;
-  unsigned long pumpStartTime = 0;
   bool isValveOpen = false;
 
+  unsigned long pumpStartTime = 0;
+  
+  static unsigned long printTimeLCD = 0;
+  const unsigned int LCDPrintTime = 1000;
 
   wantedValue = askWeightValue();
   unsigned long pumpTime = askPumpTime() ;
+
+  LoadCell.tareNoDelay(); 
+
   autoMoveDown();
-  
+
   if (weightValue >= wantedValue) {
     if (!isPumpRunning) {
       isPumpRunning = true;
       pumpStartTime = millis();
       digitalWrite(pumpPin, HIGH); 
-      Debug_println("pomp aan");
+      Debug_println("Pomp aan");
     }
   }
 
-  while (isPumpRunning && !isValveOpen) {
+  while (isPumpRunning && !isValveOpen && automaticMode) { 
+  unsigned long verstrekenTijd = millis() - pumpStartTime;
+    if (verstrekenTijd < pumpTime) {
+      unsigned long countdown = (pumpTime - verstrekenTijd) / 1000; // naar seconden
+      if (millis() - printTimeLCD >= LCDPrintTime) {
+        lcd.setCursor(0, 0);
+        lcd.print("Countdown:      ");
+        lcd.setCursor(0, 1);
+        lcd.print("                "); // leegmaken
+        lcd.setCursor(0, 1);
+        lcd.print(countdown);
+        lcd.print(" sec");
+        printTimeLCD = millis();
+      }
+    }
+
     Debug_print("Verstreken tijd: ");
-    Debug_println(millis() - pumpStartTime);
+    Debug_println(verstrekenTijd);
     Debug_print("Ingestelde tijd: ");
     Debug_println(pumpTime);
 
-    if (millis() - pumpStartTime >= pumpTime) {
-      Debug_println("Timer verlopen! POMP UIT!");
+    if (verstrekenTijd >= pumpTime) {
+      Debug_println("Timer verlopen! Pomp UIT!");
       digitalWrite(pumpPin, LOW);
       isPumpRunning = false;
-      digitalWrite(valvePin, HIGH); // dit werkt niet ik weet niet welke pin we hier voor moeten gaan gebruiken ?  
+
+      Debug_println("Klep openen...");
+      digitalWrite(valvePin, HIGH); // let op: juiste pin controleren
       isValveOpen = true;
-      delay(500);
-      digitalWrite(valvePin,LOW);
+      delay(500);  // als je dit wil behouden
+      digitalWrite(valvePin, LOW);
       isValveOpen = false;
-      // motor omhoog 
+
       Debug_println("Klep geopend");
       autoMoveUp();
+
       Debug_println("moveUp");
-      // ga uit deze lus 
       Debug_println("Test compleet.");
-      Debug_println("automatishe mode gestopt");
+      Debug_println("Automatische mode gestopt");
+
       automaticMode = false;
     }
   }
@@ -269,7 +294,7 @@ void printValue(float value){
     lcd.setCursor(0, 0);
     lcd.print("Gewicht: ");
     lcd.setCursor(0, 1);
-    lcd.print("             "); // niet getest , geen clear gebruiken maar spaties om flikkering te voorkomen ? 
+    lcd.print("             "); 
     lcd.setCursor(0, 1);
     lcd.print(abs(value), 1); // abs omdat - niet kan met lcd (of werkt niet goed toen ik dit deed (42454541)
     lcd.print(" gr");   
@@ -286,7 +311,7 @@ float askValue(String label, float startValue, float stepSize, float minValue, f
   static unsigned long printTimeLCD = 0;
   const uint8_t LCDPrintTime = 255;
 
-  while (true) {
+  while (automaticMode) {
     int joyValue = analogRead(joystickPin);
     delta = 0.0;
 
@@ -327,11 +352,11 @@ float askValue(String label, float startValue, float stepSize, float minValue, f
 }
 
 float askWeightValue() {
-  return askValue("Max-g", 100.0, 0.1, 0.0, maxWeight, "gr");
+  return askValue("Max-g", 1000.0, 10, 0.0, maxWeight, "gr");
 }
 
 unsigned long askPumpTime() {
-  return (unsigned long)(askValue("Tijd", 1.0, 1.0, 0.0, 120.0, "s") * 1000); // seconden → ms 
+  return (unsigned long)(askValue("Tijd", 300.0, 1.0, 0.0, 300.0, "s") * 1000); // seconden → ms 
 }
 
 void autoMoveDown() {
@@ -349,7 +374,7 @@ void autoMoveDown() {
     printTimeLCD = millis();
   }
 
-  while (millis() - startTime < timeout) {
+  while (millis() - startTime < timeout && automaticMode) {
     readLoadCell();
     if (weightValue <= wantedValue) {
       float error = wantedValue - weightValue;
