@@ -1,10 +1,21 @@
-#include <Wire.h> // library voor LCD
+
+/* ====================================================================== /*
+  Project      : BedrijfsTechnisch Project - PMD4U
+  Beschrijving : Code geschreven in het kader van een automatisatieproject
+  Gemaakt door : Niels Haverbeke, Pieter-Jan Desmet, Kobe Demey
+  School       : HOGENT - Bachelor Elektromechanica -Automatisering
+  Versie       : 1.0
+  Date         : 12/05/2025
+/* ====================================================================== */
+
+
+#include <Wire.h>              // library voor I2C communicatie
 #include <LiquidCrystal_I2C.h> // library voor LCD
-#include <HX711_ADC.h> // library voor ADC converter LOADCELL
-#include <AccelStepper.h>
+#include <HX711_ADC.h>         // library voor ADC converter LOADCELL
+#include <AccelStepper.h>      // library voor stepper-motor (TMC2209)
 
 // DEBUG Toggle
-#define DEBUG 0  // 0 = off (alleen loadcell waarden), 1 = on (full debugmode)
+#define DEBUG 1  // 0 = off (alleen loadcell waarden), 1 = on (full debugmode)
 #if DEBUG 
   #define Debug_println(x) Serial.println(x)
   #define Debug_print(x) Serial.print(x)
@@ -21,13 +32,14 @@ const uint8_t confirmPin  =  5;
 const uint8_t HX711_dout  =  6;
 const uint8_t HX711_sck   =  7;
 
+const uint8_t tarePin     =  8;
+
 const uint8_t STEP_PIN    =  9;
 const uint8_t DIR_PIN     = 10;
-const uint8_t MS1_PIN     = 12;
-const uint8_t MS2_PIN     = 11;
+
 
 const uint8_t pumpPin     =  3; // (NC)
-const uint8_t valvePin    =  8; 
+const uint8_t valvePin    =  11; 
 
 const uint8_t joystickPin = A1; // Y 
 
@@ -44,20 +56,24 @@ const uint8_t microstepSetting =   1;
 // Weight related
 const float maxWeight = 10000; 
 float weightValue     =     0;
+float wantedValue     =     0;
 
-//status var
+// Status var
 volatile bool automaticMode = false;
+volatile bool tareRequested = false;
 
 void setupPins() {
-  pinMode(joystickPin, INPUT);
-  pinMode(startPin, INPUT_PULLUP);
-  pinMode(stopPin, INPUT_PULLUP);
-  pinMode(confirmPin, INPUT_PULLUP);
-  pinMode(pumpPin, OUTPUT);
-  pinMode(valvePin, OUTPUT);
-  pinMode(13,OUTPUT);
+  pinMode(joystickPin  , INPUT);
+  pinMode(startPin     , INPUT_PULLUP);
+  pinMode(stopPin      , INPUT_PULLUP);
+  pinMode(confirmPin   , INPUT_PULLUP);
+  pinMode(tarePin      , INPUT_PULLUP);
+
+  pinMode(pumpPin      , OUTPUT);
+  pinMode(valvePin     , OUTPUT);
+  pinMode(13           , OUTPUT);
   
-  digitalWrite(pumpPin, LOW);
+  digitalWrite(pumpPin , LOW);
   digitalWrite(valvePin, LOW);
   
   attachInterrupt(digitalPinToInterrupt(stopPin), ISR_BREAK, FALLING);
@@ -110,12 +126,12 @@ void loop() {
     Debug_println("automatic mode");
     automatic();
   }
-  if(!automaticMode){
+  if(!automaticMode && !tareRequested){
     Debug_println("manual mode");
     moveManual();
-    digitalWrite(pumpPin, LOW); 
-    digitalWrite(valvePin, LOW);
   }
+
+  doTareRequest();
 }
 
 void ISR_BREAK(){
@@ -164,7 +180,7 @@ void automatic(){
   bool isValveOpen = false;
 
 
-  float wantedValue = askWeightValue();
+  wantedValue = askWeightValue();
   unsigned long pumpTime = askPumpTime() ;
   autoMoveDown();
   
@@ -204,6 +220,41 @@ void automatic(){
   }
 }
 
+void doTareRequest(){
+  static unsigned int printTimeLCD = 0;
+  const uint8_t LCDPrintTime = 255; 
+
+  // gebruiker vraag tare aan 
+  if (digitalRead(tarePin) == LOW && !tareRequested) { 
+    tareRequested = true;
+    Debug_println("TARE request");
+
+    if (millis() - printTimeLCD >= LCDPrintTime) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Do TARE    Conf->");
+      lcd.setCursor(0, 1);
+      lcd.print("      Canc(man)->");
+      printTimeLCD = millis();
+    }
+  }
+
+  // gebruiker bevestigt tare
+  if (tareRequested && digitalRead(confirmPin) == LOW) {
+    LoadCell.tareNoDelay();
+    Debug_println("TARE uitgevoerd");
+    lcd.clear();
+    tareRequested = false;
+  } 
+
+  // gebruiker annuleerd tare
+  if (tareRequested && digitalRead(stopPin) == LOW) {
+    Debug_println("TARE geannuleerd");
+    lcd.clear();  
+    tareRequested = false;
+  }
+}
+
 void readLoadCell() {
   if (LoadCell.update()) {
     weightValue = -LoadCell.getData();
@@ -216,12 +267,11 @@ void printValue(float value){
   if(millis() - printTimeLCD >= LCDPrintTime)
   {
     lcd.setCursor(0, 0);
-    lcd.print("Kracht: ");
+    lcd.print("Gewicht: ");
     lcd.setCursor(0, 1);
     lcd.print("             "); // niet getest , geen clear gebruiken maar spaties om flikkering te voorkomen ? 
     lcd.setCursor(0, 1);
     lcd.print(abs(value), 1); // abs omdat - niet kan met lcd (of werkt niet goed toen ik dit deed (42454541)
-    lcd.setCursor(0,14);
     lcd.print(" gr");   
     printTimeLCD = millis();
   }
@@ -289,7 +339,7 @@ void autoMoveDown() {
   const uint8_t LCDPrintTime = 255;             // refresh-interval in ms (max waarde)
   unsigned long startTime = millis();
   unsigned long timeout = 300000;               // Max 5 min proberen
-  float wantedValue = askWeightValue();
+
  
 
   if (millis() - printTimeLCD >= LCDPrintTime) {
