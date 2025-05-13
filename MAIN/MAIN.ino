@@ -58,9 +58,10 @@ const float maxWeight = 10000;
 float weightValue     =     0;
 float wantedValue     =     0;
 
+bool tareRequested = false;
+
 // Status var
-volatile bool automaticMode = false;
-volatile bool tareRequested = false;
+volatile bool automaticMode = false; // volatiel variablen die kan veranderen tijdens interrupt
 
 void setupPins() {
   pinMode(joystickPin  , INPUT);
@@ -76,7 +77,7 @@ void setupPins() {
   digitalWrite(pumpPin , LOW);
   digitalWrite(valvePin, LOW);
   
-  attachInterrupt(digitalPinToInterrupt(stopPin), ISR_BREAK, FALLING);
+  attachInterrupt(digitalPinToInterrupt(stopPin), ISR_BREAK, FALLING); // koppel stop pin aan ISR
 }
 
 void setupLoadCell(){
@@ -136,7 +137,7 @@ void loop() {
 }
 
 void ISR_BREAK(){
-  automaticMode = false;
+  automaticMode = false;  // zet de variabele terug naar 'false' in de ISR
 }
 
 void moveManual(){
@@ -153,12 +154,10 @@ void moveManual(){
     if (joystickValue > 512 + deadzone) {
       stepper.setSpeed(speed); // positieve snelheid = omhoog
       stepper.runSpeed();
-    }
-    else if (joystickValue < 512 - deadzone) {
+    } else if (joystickValue < 512 - deadzone) {
       stepper.setSpeed(-speed); // negatieve snelheid = omlaag
       stepper.runSpeed();
-    }
-    else {
+    } else {
       stepper.setSpeed(0); // stop in de deadzone
       stepper.runSpeed();
     }
@@ -182,10 +181,10 @@ void automatic(){
   unsigned long pumpStartTime = 0;
   
   static unsigned long printTimeLCD = 0;
-  const unsigned int LCDPrintTime = 1000;
+  const unsigned int LCDPrintTime = 1000;  // refresh rate van 1 sec
 
   wantedValue = askWeightValue();
-  unsigned long pumpTime = askPumpTime() ;
+  unsigned long pumpTime = askPumpTime();
 
   LoadCell.tareNoDelay(); 
 
@@ -208,7 +207,7 @@ void automatic(){
         lcd.setCursor(0, 0);
         lcd.print("Countdown:      ");
         lcd.setCursor(0, 1);
-        lcd.print("                "); // leegmaken
+        lcd.print("                "); // clear, om niet het hele scherm te refreshen alleen de veranderde waarde
         lcd.setCursor(0, 1);
         lcd.print(countdown);
         lcd.print(" sec");
@@ -311,11 +310,11 @@ float askValue(String label, float startValue, float stepSize, float minValue, f
   static unsigned long printTimeLCD = 0;
   const uint8_t LCDPrintTime = 255;
 
-  while (automaticMode) {
-    int joyValue = analogRead(joystickPin);
+  while (automaticMode) { // vraag naar waarde doe terwijl niets anders : behalve als niet automaticmode (ISR)
+    int joyValue = analogRead(joystickPin); // uitlezen
     delta = 0.0;
 
-    // Joystick uitlezen en aanpassen
+    // Joystick uitlezen en aanpassen met deadzone
     if (millis() - lastUpdateTime >= updateInterval) {
       if (joyValue < 490) {                                      
         delta = (joyValue - 490) / 490.0 * stepSize; 
@@ -363,7 +362,7 @@ void autoMoveDown() {
   unsigned long printTimeLCD = 0;   
   const uint8_t LCDPrintTime = 255;             // refresh-interval in ms (max waarde)
   unsigned long startTime = millis();
-  unsigned long timeout = 300000;               // Max 5 min proberen
+  unsigned long timeout = 300000;               // Max 5 min proberen 
 
  
 
@@ -386,10 +385,10 @@ void autoMoveDown() {
       float maxSpeed = microstepSetting * stepsPerRevolution * 2000 / 60.0;
 
       stepper.setMaxSpeed(maxSpeed);
-      stepper.setSpeed(-speedStepsPerSec); // omlaag
+      stepper.setSpeed(-speedStepsPerSec); // - omlaag
       stepper.runSpeed();
       Serial.println(weightValue);
-    }else {
+    } else {
       stepper.setMaxSpeed(0);
       stepper.setSpeed(0);
       stepper.runSpeed();
